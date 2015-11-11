@@ -1,0 +1,8 @@
+*.gz
+*.tar
+*.o
+*.vcxproj*
+*.sln
+*.opensdf
+*.sdf
+.vs
