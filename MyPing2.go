@@ -72,7 +72,11 @@ func ToPing(num int) {
         } else {
             fal++
         }
-        fmt.Printf("\033[%d;%dH\033[2K\r[%s] [s:%d|f:%d], %s", num, 3, IpMap[num], success, fal, inputString)
+        if fal > 10 {
+            fmt.Printf("\033[%d;%dH\033[2K\r\033[31m[%s] [s:%d|f:%d], %s", num+1, 3, IpMap[num], success, fal, inputString)
+        } else {
+            fmt.Printf("\033[%d;%dH\033[2K\r\033[32m[%s] [s:%d|f:%d], %s", num+1, 3, IpMap[num], success, fal, inputString)
+        }
     }
 }
 
