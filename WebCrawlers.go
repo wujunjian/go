@@ -11,6 +11,7 @@ import (
     "io/ioutil"
     "log"
     "regexp"
+    "sync"
 )
 
 var ToDoUrl_ch chan string
@@ -29,9 +30,11 @@ var Domain string
 
 var quit chan int
 
+var CrawledUrlLocker sync.RWMutex
+
 func initTaskCh() {
 	for i := 0; i < ToDoUrlNum; i++ {
-		ToDoUrl_ch = make(chan string,300000)
+		ToDoUrl_ch = make(chan string,10000000)
 	}
     
     for i := 0; i < DownHtmlNum; i++ {
@@ -92,9 +95,14 @@ func ParseHtml() {
             }
 
             NormalUrl := strings.Split(href[i], "\"")
-            if CrawledUrl[NormalUrl[0]] == 0 {
-                CrawledUrl[NormalUrl[0]] = 1
+            CrawledUrlLocker.RLock()
+            num := CrawledUrl[NormalUrl[0]]
+            CrawledUrlLocker. RUnlock()
+            if num == 0 {
                 fmt.Println("New Url : ", NormalUrl[0])
+                CrawledUrlLocker.Lock()
+                CrawledUrl[NormalUrl[0]] = 1
+                CrawledUrlLocker.Unlock()
             } else {
                 //fmt.Println("Crawled Url : ", NormalUrl[0])
                 continue
@@ -143,10 +151,24 @@ func ParseHtmlWithRegExp() {
                !strings.Contains(tmpUrl, Domain){
                 continue
             }
-
-            if CrawledUrl[tmpUrl] == 0 {
-                CrawledUrl[tmpUrl] = 1
+            
+            if strings.Contains(tmpUrl, "#")  {
+                tmp := strings.Split(tmpUrl, "#")
+                tmpUrl = tmp[0]
+            }
+            if strings.Contains(tmpUrl, "html?") {
+                tmp := strings.Split(tmpUrl, "html?")
+                tmpUrl = tmp[0] + "html"
+            }
+            
+            CrawledUrlLocker.RLock()
+            num := CrawledUrl[tmpUrl]
+            CrawledUrlLocker. RUnlock()
+            if num == 0 {
                 fmt.Println("New Url : ", tmpUrl)
+                CrawledUrlLocker.Lock()
+                CrawledUrl[tmpUrl] = 1
+                CrawledUrlLocker.Unlock()
             } else {
                 //fmt.Println("Crawled Url : ", tmpUrl)
                 continue
@@ -165,7 +187,7 @@ func ParseHtmlWithRegExp() {
 }
 
 func initmylog() {
-    task_log_file := "./item.log"
+    task_log_file := Domain+".item.log"
     tasklogfile,err := os.OpenFile(task_log_file,os.O_RDWR|os.O_CREATE,0)
     if err!=nil {
         fmt.Printf("%s\r\n",err.Error())
@@ -200,6 +222,7 @@ func polling() {
     }
     close(ToDoUrl_ch)
     close(DownHtml_ch)
+    time.Sleep(3000 * time.Millisecond)
     quit<-0
 }
 
@@ -212,12 +235,15 @@ func main() {
     Domain  = os.Args[2]
     Regular = os.Args[3]
     fmt.Println(RootUrl, Domain, Regular)
-    
-    runtime.GOMAXPROCS(runtime.NumCPU())
 
-    ToDoUrlNum = 8
-    DownHtmlNum = 8
+    cpunum := runtime.NumCPU()
+    runtime.GOMAXPROCS(cpunum)
+
+    ToDoUrlNum = 12
+    DownHtmlNum = 4
     CrawledUrl = make(map[string]int)
+    quit = make(chan int)
+    
     initTaskCh()
     initmylog()
     ToDoUrl_ch<-RootUrl
@@ -233,6 +259,5 @@ func main() {
     
     go polling()
 
-    
     <-quit
 }
