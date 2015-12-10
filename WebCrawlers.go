@@ -12,6 +12,7 @@ import (
     "log"
     "regexp"
     "sync"
+    //"bloomfilter"
 )
 
 var ToDoUrl_ch chan string
@@ -25,7 +26,7 @@ var logger_task *log.Logger
 var logger_err *log.Logger
 
 var RootUrl string
-var Regular string
+var Regular []string
 var Domain string
 
 var quit chan int
@@ -51,7 +52,7 @@ func GetUrl() {
             return
         }
         
-        //time.Sleep(100 * time.Millisecond)
+        fmt.Println("request : ", Url)
         resp, err := http.Get(Url)
         if err!=nil {
             continue
@@ -59,7 +60,17 @@ func GetUrl() {
             fmt.Println("err ", Url)
         }
         
-        fmt.Println("request : ", Url)
+        // If the response is one of the following redirect codes, Get follows the redirect, up to a maximum of 10 redirects:
+        //301 (Moved Permanently)
+        //302 (Found)
+        //303 (See Other)
+        //307 (Temporary Redirect)
+        //fmt.Println(resp.StatusCode, resp.Status);
+        //if resp.StatusCode == 302 || resp.StatusCode == 301 {
+        //    fmt.Println(resp.Header);
+        //    fmt.Print("...................:");
+        //    fmt.Println(resp.Header["Location"]);
+        //}
         robots, err := ioutil.ReadAll(resp.Body)
         resp.Body.Close()
         if err != nil {
@@ -77,51 +88,6 @@ func GetUrl() {
     }
 }
 
-func ParseHtml() {
-    for {
-        html,ok := <- DownHtml_ch
-        if ok==false {
-            logger_err.Println("DownHtml_ch closed")
-            return
-        }
-        
-        //fmt.Println(html)
-        href := strings.Split(html, "href=\"")
-        
-        for i:=0;i<len(href);i++ {
-        
-            if !strings.Contains(href[i], "http") || strings.Contains(href[i], "<!DOCTYPE") {
-                continue
-            }
-
-            NormalUrl := strings.Split(href[i], "\"")
-            CrawledUrlLocker.RLock()
-            num := CrawledUrl[NormalUrl[0]]
-            CrawledUrlLocker. RUnlock()
-            if num == 0 {
-                fmt.Println("New Url : ", NormalUrl[0])
-                CrawledUrlLocker.Lock()
-                CrawledUrl[NormalUrl[0]] = 1
-                CrawledUrlLocker.Unlock()
-            } else {
-                //fmt.Println("Crawled Url : ", NormalUrl[0])
-                continue
-            }
-
-            if strings.Contains(NormalUrl[0], Regular) {
-                logger_task.Println(NormalUrl[0])
-            } else {
-                //fmt.Println("other Url: ", NormalUrl[0])
-            }
-            ToDoUrl_ch<-NormalUrl[0]
-        }
-    }
-    
-    //reg := regexp.MustCompile(`[a-z]+`)
-    //fmt.Printf("%q\n", reg.FindAllString(text, -1))
-}
-
-
 func ParseHtmlWithRegExp() {
     for {
         html,ok := <- DownHtml_ch
@@ -132,9 +98,15 @@ func ParseHtmlWithRegExp() {
         
         //fmt.Println(html)
 
-        //reg := regexp.MustCompile(`http://[^"| |;]*"??`)
+        reg0 := regexp.MustCompile(`http://[^"| |;]*"??`)
+        NormalUrl0 := reg0.FindAllString(html, -1)
+        
         reg := regexp.MustCompile(`href="[^"| |;]*"??`)
         NormalUrl := reg.FindAllString(html, -1)
+
+        for i:=0; i<len(NormalUrl0);i++ {
+            NormalUrl = append(NormalUrl, NormalUrl0[i])
+        }
         var tmpUrl string
         for i:=0; i<len(NormalUrl);i++ {
             tmpUrl = strings.Replace(NormalUrl[i], "href=\"", "", -1)
@@ -163,7 +135,7 @@ func ParseHtmlWithRegExp() {
             
             CrawledUrlLocker.RLock()
             num := CrawledUrl[tmpUrl]
-            CrawledUrlLocker. RUnlock()
+            CrawledUrlLocker.RUnlock()
             if num == 0 {
                 fmt.Println("New Url : ", tmpUrl)
                 CrawledUrlLocker.Lock()
@@ -173,11 +145,13 @@ func ParseHtmlWithRegExp() {
                 //fmt.Println("Crawled Url : ", tmpUrl)
                 continue
             }
-            
-            if strings.Contains(tmpUrl, Regular) {
-                logger_task.Println(tmpUrl)
-            } else {
-                //fmt.Println("other Url: ", tmpUrl)
+            var contains bool
+            for i:=0;i<len(Regular);i++ {
+                contains = strings.Contains(tmpUrl, Regular[i])
+                if contains {
+                    logger_task.Println(tmpUrl)
+                    break
+                }
             }
             ToDoUrl_ch<-tmpUrl
         }
@@ -233,8 +207,14 @@ func main() {
     }
     RootUrl = os.Args[1]
     Domain  = os.Args[2]
-    Regular = os.Args[3]
-    fmt.Println(RootUrl, Domain, Regular)
+    tmpRegular := os.Args[3]
+    fmt.Println(RootUrl, Domain, tmpRegular)
+    
+    tmpRegularArr := strings.Split(tmpRegular, ".")
+    
+    for i:=0;i<len(tmpRegularArr); i++ {
+        Regular = append(Regular, tmpRegularArr[i])
+    }
 
     cpunum := runtime.NumCPU()
     runtime.GOMAXPROCS(cpunum)
@@ -253,11 +233,11 @@ func main() {
     }
     
     for i:=0;i<DownHtmlNum;i++ {
-        //go ParseHtml()
         go ParseHtmlWithRegExp()
     }
     
     go polling()
 
     <-quit
+    fmt.Println("Quit")
 }
