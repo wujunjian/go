@@ -1,1 +1,1 @@
-just a test
+go test -timeout 360000s route-broker/rb -run '^(TestBatchFile)$' -v
