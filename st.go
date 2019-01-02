@@ -22,6 +22,8 @@ const rad = math.Pi / 180
 var cline chan []string
 var stwg sync.WaitGroup
 
+var maplock sync.RWMutex
+
 func main() {
 	fmt.Println("begin...")
 	//fmt.Println(GetSphereDistance(-99.189470, 19.302510, -99.189408, 19.302522))
@@ -42,11 +44,17 @@ func main() {
 			return
 		}
 		br := bufio.NewReader(fi)
+		var num int
 		for {
+			if num%10000 == 0 {
+				fmt.Println("lines:", num)
+			}
+
 			line, _, c := br.ReadLine()
 			if c == io.EOF {
 				break
 			}
+			num++
 			sline := string(line)
 			data := strings.Split(sline, ",")
 			//stData(data)
@@ -61,10 +69,50 @@ func main() {
 	}
 	time.Sleep(2 * time.Second)
 	stwg.Wait()
+	output()
+}
+
+func output() {
+	fmt.Println("detail:")
+
+	wfi, err := os.OpenFile("out.log", os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+		return
+	}
+	defer wfi.Close()
 
 	for key, sp := range tollresultmap {
-		fmt.Printf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n", key, sp.a30, sp.a60, sp.a110, sp.a160, sp.a210, sp.a260, sp.a310, sp.b30, sp.b60, sp.b110, sp.b160, sp.b210, sp.b260, sp.b310)
+		fmt.Printf("%v,", key)
+		outdetail(wfi, sp.a30, ",")
+		outdetail(wfi, sp.a60, ",")
+		outdetail(wfi, sp.a110, ",")
+		outdetail(wfi, sp.a160, ",")
+		outdetail(wfi, sp.a210, ",")
+		outdetail(wfi, sp.a260, ",")
+		outdetail(wfi, sp.a310, ",")
+		outdetail(wfi, sp.b30, ",")
+		outdetail(wfi, sp.b60, ",")
+		outdetail(wfi, sp.b110, ",")
+		outdetail(wfi, sp.b160, ",")
+		outdetail(wfi, sp.b210, ",")
+		outdetail(wfi, sp.b260, ",")
+		outdetail(wfi, sp.b310, "\n")
 	}
+}
+
+func outdetail(f *os.File, sp []string, sep string) {
+	var av int
+	if len(sp) != 0 {
+		var total int
+		for _, s := range sp {
+			sp, _ := strconv.Atoi(s)
+			total += sp
+		}
+		av = total / len(sp)
+	}
+
+	f.WriteString(fmt.Sprintf("%v%v", av, sep))
 }
 
 const (
@@ -86,20 +134,20 @@ type tollresult struct {
 }
 
 type speeds struct {
-	b30  string
-	b60  string
-	b110 string
-	b160 string
-	b210 string
-	b260 string
-	b310 string
-	a30  string
-	a60  string
-	a110 string
-	a160 string
-	a210 string
-	a260 string
-	a310 string
+	b30  []string
+	b60  []string
+	b110 []string
+	b160 []string
+	b210 []string
+	b260 []string
+	b310 []string
+	a30  []string
+	a60  []string
+	a110 []string
+	a160 []string
+	a210 []string
+	a260 []string
+	a310 []string
 }
 
 //tollid+inout+tof+orderid+driverid
@@ -163,14 +211,21 @@ func stData() {
 }
 
 func stDataDetailSpeed(tr *tollresult, tp *tPoint) {
+	if tr == nil || tp == nil {
+		return
+	}
 	//calc
 	sdistance := GetSphereDistance(tr.lng, tr.lat, tp.Lng, tp.Lat)
 	if sdistance <= 310 {
+		maplock.Lock()
+		defer maplock.Unlock()
+
 		adistance := GetSphereDistance(tr.lng, tr.lat, tp.AfterLng, tp.AfterLat)
 		bdistance := GetSphereDistance(tr.lng, tr.lat, tp.BeforeLng, tp.BeforeLat)
 		//tollid+inout+tof+orderid+driverid
 		key := fmt.Sprintf("%v,%v,%v,%v,%v", tr.tollid, tr.inout, tr.tof, tr.orderid, tr.driverid)
 		sp, ok := tollresultmap[key]
+
 		if !ok {
 			tsp := &speeds{}
 			tollresultmap[key] = tsp
@@ -179,14 +234,58 @@ func stDataDetailSpeed(tr *tollresult, tp *tPoint) {
 		var where int
 		if bdistance < adistance {
 			where = before
+		} else {
+			where = after
 		}
 		switch {
 		case 260 < sdistance && sdistance <= 310:
 			switch where {
 			case before:
-				sp.a310 = tr.speed
+				sp.b310 = append(sp.b310, tr.speed)
 			case after:
-				sp.b310 = tr.speed
+				sp.a310 = append(sp.a310, tr.speed)
+			}
+		case 210 < sdistance && sdistance <= 260:
+			switch where {
+			case before:
+				sp.b260 = append(sp.b260, tr.speed)
+			case after:
+				sp.a260 = append(sp.a260, tr.speed)
+			}
+		case 160 < sdistance && sdistance <= 210:
+			switch where {
+			case before:
+				sp.b210 = append(sp.b210, tr.speed)
+			case after:
+				sp.a210 = append(sp.a210, tr.speed)
+			}
+		case 110 < sdistance && sdistance <= 160:
+			switch where {
+			case before:
+				sp.b160 = append(sp.b160, tr.speed)
+			case after:
+				sp.a160 = append(sp.a160, tr.speed)
+			}
+		case 60 < sdistance && sdistance <= 110:
+			switch where {
+			case before:
+				sp.b110 = append(sp.b110, tr.speed)
+			case after:
+				sp.a110 = append(sp.a110, tr.speed)
+			}
+		case 30 < sdistance && sdistance <= 60:
+			switch where {
+			case before:
+				sp.b60 = append(sp.b60, tr.speed)
+			case after:
+				sp.a60 = append(sp.a60, tr.speed)
+			}
+		case sdistance <= 30:
+			switch where {
+			case before:
+				sp.b30 = append(sp.b30, tr.speed)
+			case after:
+				sp.a30 = append(sp.a30, tr.speed)
 			}
 		}
 	}
@@ -194,7 +293,7 @@ func stDataDetailSpeed(tr *tollresult, tp *tPoint) {
 }
 
 //文件过滤
-var filter = false
+var filter = true
 
 func getAllFiles(dirPth string) (files []string, err error) {
 	dir, err := ioutil.ReadDir(dirPth)
