@@ -34,7 +34,7 @@ func main() {
 	}
 	//fmt.Printf("files:%v", files)
 	sort.Strings(files)
-	fmt.Printf("files:%v", files)
+	fmt.Printf("files:%v\n", files)
 
 	for _, file := range files {
 		fmt.Println("deal:", file)
@@ -46,7 +46,7 @@ func main() {
 		br := bufio.NewReader(fi)
 		var num int
 		for {
-			if num%10000 == 0 {
+			if num%1000000 == 0 {
 				fmt.Println("lines:", num)
 			}
 
@@ -74,7 +74,7 @@ func main() {
 
 func output() {
 	fmt.Println("detail:")
-
+	time.Now()
 	wfi, err := os.OpenFile("out.log", os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err)
@@ -83,36 +83,155 @@ func output() {
 	defer wfi.Close()
 
 	for key, sp := range tollresultmap {
-		fmt.Printf("%v,", key)
+		sort.Slice(sp.p0t310, func(i, j int) bool { return sp.p0t310[i].timestamp < sp.p0t310[j].timestamp })
+
+		//tollid+inout+tof+orderid+driverid
+		//if key == "20006,entry,true,87961560317150,650910892391271" {
+		//	fmt.Println(key, ":")
+		//	for _, s := range sp.p0t310 {
+		//		fmt.Printf("%v,%v;%v\n", s.lng, s.lat, s.timestamp)
+		//	}
+		//}
+
+		var preds float64
+		var preidx int
+		isbefore := true
+		var prepoint *tollresultpoint
+		for idx, item := range sp.p0t310 {
+			ds := GetSphereDistance(item.lng, item.lat, sp.tp.Lng, sp.tp.Lat)
+			if idx == 0 {
+				preds = ds
+				preidx = idx
+				prepoint = item
+				continue
+			}
+			bds := GetSphereDistance(item.lng, item.lat, prepoint.lng, prepoint.lat)
+
+			if preds < ds || (bds > ds && bds > preds) {
+				isbefore = false
+			}
+
+			if isbefore {
+				switch {
+				case 310 < ds && ds <= 360:
+					sp.b310 = append(sp.b310, sp.p0t310[preidx:idx+1]...)
+				case 260 < ds && ds <= 310:
+					sp.b310 = append(sp.b310, sp.p0t310[preidx:idx+1]...)
+					sp.b260 = append(sp.b260, sp.p0t310[preidx:idx+1]...)
+				case 210 < ds && ds <= 260:
+					sp.b260 = append(sp.b260, sp.p0t310[preidx:idx+1]...)
+					sp.b210 = append(sp.b210, sp.p0t310[preidx:idx+1]...)
+				case 160 < ds && ds <= 210:
+					sp.b210 = append(sp.b210, sp.p0t310[preidx:idx+1]...)
+					sp.b160 = append(sp.b160, sp.p0t310[preidx:idx+1]...)
+				case 110 < ds && ds <= 160:
+					sp.b160 = append(sp.b160, sp.p0t310[preidx:idx+1]...)
+					sp.b110 = append(sp.b110, sp.p0t310[preidx:idx+1]...)
+				case 80 < ds && ds <= 110:
+					sp.b110 = append(sp.b110, sp.p0t310[preidx:idx+1]...)
+					sp.b60 = append(sp.b60, sp.p0t310[preidx:idx+1]...)
+				case 60 < ds && ds <= 80:
+					sp.b110 = append(sp.b110, sp.p0t310[preidx:idx+1]...)
+					sp.b60 = append(sp.b60, sp.p0t310[preidx:idx+1]...)
+				case 30 < ds && ds <= 60:
+					sp.b60 = append(sp.b60, sp.p0t310[preidx:idx+1]...)
+					sp.b30 = append(sp.b30, sp.p0t310[preidx:idx+1]...)
+				case 10 < ds && ds <= 30:
+					sp.b60 = append(sp.b60, sp.p0t310[preidx:idx+1]...)
+					sp.b30 = append(sp.b30, sp.p0t310[preidx:idx+1]...)
+				case 0 <= ds && ds <= 10:
+					sp.b30 = append(sp.b30, sp.p0t310[preidx:idx+1]...)
+				default:
+					fmt.Println("before:", isbefore, "ds:", ds)
+				}
+			} else { //after
+				switch {
+				case 310 < ds && ds <= 360:
+					sp.a310 = append(sp.a310, sp.p0t310[preidx:idx+1]...)
+				case 260 < ds && ds <= 310:
+					sp.a310 = append(sp.a310, sp.p0t310[preidx:idx+1]...)
+					sp.a260 = append(sp.a260, sp.p0t310[preidx:idx+1]...)
+				case 210 < ds && ds <= 260:
+					sp.a260 = append(sp.a260, sp.p0t310[preidx:idx+1]...)
+					sp.a210 = append(sp.a210, sp.p0t310[preidx:idx+1]...)
+				case 160 < ds && ds <= 210:
+					sp.a210 = append(sp.a210, sp.p0t310[preidx:idx+1]...)
+					sp.a160 = append(sp.a160, sp.p0t310[preidx:idx+1]...)
+				case 110 < ds && ds <= 160:
+					sp.a160 = append(sp.a160, sp.p0t310[preidx:idx+1]...)
+					sp.a110 = append(sp.a110, sp.p0t310[preidx:idx+1]...)
+				case 80 < ds && ds <= 110:
+					sp.a110 = append(sp.a110, sp.p0t310[preidx:idx+1]...)
+					sp.a60 = append(sp.a60, sp.p0t310[preidx:idx+1]...)
+				case 60 < ds && ds <= 80:
+					sp.a110 = append(sp.a110, sp.p0t310[preidx:idx+1]...)
+					sp.a60 = append(sp.a60, sp.p0t310[preidx:idx+1]...)
+				case 30 < ds && ds <= 60:
+					sp.a60 = append(sp.a60, sp.p0t310[preidx:idx+1]...)
+					sp.a30 = append(sp.a30, sp.p0t310[preidx:idx+1]...)
+				case 10 < ds && ds <= 30:
+					sp.a60 = append(sp.a60, sp.p0t310[preidx:idx+1]...)
+					sp.a30 = append(sp.a30, sp.p0t310[preidx:idx+1]...)
+				case 0 <= ds && ds <= 10:
+					sp.a30 = append(sp.a30, sp.p0t310[preidx:idx+1]...)
+				default:
+					fmt.Println("before:", isbefore, "ds:", ds)
+				}
+			}
+
+			preidx = idx
+			preds = ds
+			prepoint = item
+		}
+
+		wfi.WriteString(fmt.Sprintf("%v,", key))
+		outdetail(wfi, sp.b310, ",")
+		outdetail(wfi, sp.b260, ",")
+		outdetail(wfi, sp.b210, ",")
+		outdetail(wfi, sp.b160, ",")
+		outdetail(wfi, sp.b110, ",")
+		outdetail(wfi, sp.b60, ",")
+		outdetail(wfi, sp.b30, ",")
 		outdetail(wfi, sp.a30, ",")
 		outdetail(wfi, sp.a60, ",")
 		outdetail(wfi, sp.a110, ",")
 		outdetail(wfi, sp.a160, ",")
 		outdetail(wfi, sp.a210, ",")
 		outdetail(wfi, sp.a260, ",")
-		outdetail(wfi, sp.a310, ",")
-		outdetail(wfi, sp.b30, ",")
-		outdetail(wfi, sp.b60, ",")
-		outdetail(wfi, sp.b110, ",")
-		outdetail(wfi, sp.b160, ",")
-		outdetail(wfi, sp.b210, ",")
-		outdetail(wfi, sp.b260, ",")
-		outdetail(wfi, sp.b310, "\n")
+		outdetail(wfi, sp.a310, "\n")
 	}
 }
 
-func outdetail(f *os.File, sp []string, sep string) {
-	var av int
-	if len(sp) != 0 {
-		var total int
-		for _, s := range sp {
-			sp, _ := strconv.Atoi(s)
-			total += sp
+func outdetail(f *os.File, sp []*tollresultpoint, sep string) {
+	var av float64
+	tnum := len(sp)
+
+	var pre *tollresultpoint
+	var tspeed float64
+	for idx, trt := range sp {
+		if idx == 0 {
+			pre = trt
+			continue
 		}
-		av = total / len(sp)
+		d := GetSphereDistance(trt.lng, trt.lat, pre.lng, pre.lat)
+		tn, _ := strconv.Atoi(trt.timestamp[:10])
+		tp, _ := strconv.Atoi(pre.timestamp[:10])
+
+		if tn-tp < 1 || d < 1 {
+			tnum--
+			continue
+		}
+		tspeed += d / float64(tn-tp)
+		pre = trt
 	}
 
-	f.WriteString(fmt.Sprintf("%v%v", av, sep))
+	if tnum > 1 {
+		av = tspeed / float64(tnum-1) * 1000
+	} else {
+		av = 0
+	}
+	f.WriteString(fmt.Sprintf("%.f%v", av, sep))
+
 }
 
 const (
@@ -133,21 +252,32 @@ type tollresult struct {
 	driverid  string
 }
 
+type tollresultpoint struct {
+	where     int
+	distance  float64
+	timestamp string
+	lng       float64
+	lat       float64
+}
+
 type speeds struct {
-	b30  []string
-	b60  []string
-	b110 []string
-	b160 []string
-	b210 []string
-	b260 []string
-	b310 []string
-	a30  []string
-	a60  []string
-	a110 []string
-	a160 []string
-	a210 []string
-	a260 []string
-	a310 []string
+	p0t310 []*tollresultpoint
+	tp     *tPoint
+
+	b30  []*tollresultpoint
+	b60  []*tollresultpoint
+	b110 []*tollresultpoint
+	b160 []*tollresultpoint
+	b210 []*tollresultpoint
+	b260 []*tollresultpoint
+	b310 []*tollresultpoint
+	a30  []*tollresultpoint
+	a60  []*tollresultpoint
+	a110 []*tollresultpoint
+	a160 []*tollresultpoint
+	a210 []*tollresultpoint
+	a260 []*tollresultpoint
+	a310 []*tollresultpoint
 }
 
 //tollid+inout+tof+orderid+driverid
@@ -216,78 +346,88 @@ func stDataDetailSpeed(tr *tollresult, tp *tPoint) {
 	}
 	//calc
 	sdistance := GetSphereDistance(tr.lng, tr.lat, tp.Lng, tp.Lat)
-	if sdistance <= 310 {
+	//|| (tr.orderid == "87961596646385" && strconv.Itoa(tr.tollid) == "31014")
+	// || (tr.orderid == "87961560317150" && strconv.Itoa(tr.tollid) == "20006")
+	if sdistance <= 360 {
 		maplock.Lock()
 		defer maplock.Unlock()
 
-		adistance := GetSphereDistance(tr.lng, tr.lat, tp.AfterLng, tp.AfterLat)
-		bdistance := GetSphereDistance(tr.lng, tr.lat, tp.BeforeLng, tp.BeforeLat)
+		//adistance := GetSphereDistance(tr.lng, tr.lat, tp.AfterLng, tp.AfterLat)
+		//bdistance := GetSphereDistance(tr.lng, tr.lat, tp.BeforeLng, tp.BeforeLat)
 		//tollid+inout+tof+orderid+driverid
 		key := fmt.Sprintf("%v,%v,%v,%v,%v", tr.tollid, tr.inout, tr.tof, tr.orderid, tr.driverid)
+		//key := fmt.Sprintf("%v,%v,%v", tr.tollid, tr.inout, tr.tof)
 		sp, ok := tollresultmap[key]
-
 		if !ok {
 			tsp := &speeds{}
 			tollresultmap[key] = tsp
 			sp = tsp
 		}
 		var where int
-		if bdistance < adistance {
-			where = before
+		//if bdistance < adistance {
+		//	where = before
+		//} else {
+		//	where = after
+		//}
+
+		sp.tp = tp
+		tmpspeed := &tollresultpoint{0, sdistance, tr.timestamp, tr.lng, tr.lat}
+		if true {
+			sp.p0t310 = append(sp.p0t310, tmpspeed)
 		} else {
-			where = after
+			switch {
+			case 260 < sdistance && sdistance <= 310:
+				switch where {
+				case before:
+					sp.b310 = append(sp.b310, tmpspeed)
+				case after:
+					sp.a310 = append(sp.a310, tmpspeed)
+				}
+			case 210 < sdistance && sdistance <= 260:
+				switch where {
+				case before:
+					sp.b260 = append(sp.b260, tmpspeed)
+				case after:
+					sp.a260 = append(sp.a260, tmpspeed)
+				}
+			case 160 < sdistance && sdistance <= 210:
+				switch where {
+				case before:
+					sp.b210 = append(sp.b210, tmpspeed)
+				case after:
+					sp.a210 = append(sp.a210, tmpspeed)
+				}
+			case 110 < sdistance && sdistance <= 160:
+				switch where {
+				case before:
+					sp.b160 = append(sp.b160, tmpspeed)
+				case after:
+					sp.a160 = append(sp.a160, tmpspeed)
+				}
+			case 60 < sdistance && sdistance <= 110:
+				switch where {
+				case before:
+					sp.b110 = append(sp.b110, tmpspeed)
+				case after:
+					sp.a110 = append(sp.a110, tmpspeed)
+				}
+			case 30 < sdistance && sdistance <= 60:
+				switch where {
+				case before:
+					sp.b60 = append(sp.b60, tmpspeed)
+				case after:
+					sp.a60 = append(sp.a60, tmpspeed)
+				}
+			case sdistance <= 30:
+				switch where {
+				case before:
+					sp.b30 = append(sp.b30, tmpspeed)
+				case after:
+					sp.a30 = append(sp.a30, tmpspeed)
+				}
+			}
 		}
-		switch {
-		case 260 < sdistance && sdistance <= 310:
-			switch where {
-			case before:
-				sp.b310 = append(sp.b310, tr.speed)
-			case after:
-				sp.a310 = append(sp.a310, tr.speed)
-			}
-		case 210 < sdistance && sdistance <= 260:
-			switch where {
-			case before:
-				sp.b260 = append(sp.b260, tr.speed)
-			case after:
-				sp.a260 = append(sp.a260, tr.speed)
-			}
-		case 160 < sdistance && sdistance <= 210:
-			switch where {
-			case before:
-				sp.b210 = append(sp.b210, tr.speed)
-			case after:
-				sp.a210 = append(sp.a210, tr.speed)
-			}
-		case 110 < sdistance && sdistance <= 160:
-			switch where {
-			case before:
-				sp.b160 = append(sp.b160, tr.speed)
-			case after:
-				sp.a160 = append(sp.a160, tr.speed)
-			}
-		case 60 < sdistance && sdistance <= 110:
-			switch where {
-			case before:
-				sp.b110 = append(sp.b110, tr.speed)
-			case after:
-				sp.a110 = append(sp.a110, tr.speed)
-			}
-		case 30 < sdistance && sdistance <= 60:
-			switch where {
-			case before:
-				sp.b60 = append(sp.b60, tr.speed)
-			case after:
-				sp.a60 = append(sp.a60, tr.speed)
-			}
-		case sdistance <= 30:
-			switch where {
-			case before:
-				sp.b30 = append(sp.b30, tr.speed)
-			case after:
-				sp.a30 = append(sp.a30, tr.speed)
-			}
-		}
+
 	}
 
 }
